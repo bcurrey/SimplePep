@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peptide Log</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="App header">
+        <div>
+          <p class="eyebrow">Simple tracker</p>
+          <h1>Peptide Log</h1>
+        </div>
+        <button class="icon-button" id="quickMissedButton" type="button" aria-label="Add missed injection">+</button>
+      </section>
+
+      <section class="screen is-active" id="homeScreen" aria-labelledby="homeTitle">
+        <div class="section-heading">
+          <h2 id="homeTitle">Favorites</h2>
+          <p>Tap a peptide to log a completed injection.</p>
+        </div>
+        <div class="favorite-grid" id="favoriteGrid"></div>
+      </section>
+
+      <section class="screen" id="historyScreen" aria-labelledby="historyTitle">
+        <div class="section-heading history-heading">
+          <div>
+            <h2 id="historyTitle">History</h2>
+            <p>Completed and missed injections appear here.</p>
+          </div>
+          <button class="secondary-button" id="missedButton" type="button">Add Missed</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="screen" id="calendarScreen" aria-labelledby="calendarTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="calendarTitle">Calendar</h2>
+            <p>Green days show logged peptide entries.</p>
+          </div>
+        </div>
+
+        <div class="calendar-controls" aria-label="Calendar filters">
+          <label>
+            Peptide
+            <select id="calendarPeptideInput"></select>
+          </label>
+          <label>
+            Month
+            <select id="calendarMonthInput"></select>
+          </label>
+          <label>
+            Year
+            <input id="calendarYearInput" type="number" min="2020" max="2100" />
+          </label>
+        </div>
+
+        <div class="calendar-card">
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Sun</span>
+            <span>Mon</span>
+            <span>Tue</span>
+            <span>Wed</span>
+            <span>Thu</span>
+            <span>Fri</span>
+            <span>Sat</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-button is-active" type="button" data-tab="home">
+        <span>Home</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="history">
+        <span>History</span>
+      </button>
+      <button class="nav-button" type="button" data-tab="calendar">
+        <span>Calendar</span>
+      </button>
+    </nav>
+
+    <dialog class="entry-dialog" id="entryDialog">
+      <form class="entry-form" id="entryForm" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow" id="dialogMode">Completed injection</p>
+            <h2 id="dialogTitle">Log dose</h2>
+          </div>
+          <button class="icon-button ghost" id="closeDialogButton" type="button" aria-label="Close">x</button>
+        </div>
+
+        <label>
+          Peptide
+          <select id="peptideInput" required></select>
+        </label>
+
+        <div class="field-row">
+          <label class="slider-field">
+            Dosage amount
+            <span class="dose-readout"><span id="amountValue">0.5</span> <span id="unitPreview">mg</span></span>
+            <input id="amountInput" type="range" min="0" max="10" step="0.1" value="0.5" />
+          </label>
+          <label>
+            Unit
+            <input id="unitInput" type="text" value="mg" maxlength="12" />
+          </label>
+        </div>
+
+        <label>
+          Date and time
+          <input id="timestampInput" type="datetime-local" required />
+        </label>
+
+        <div class="type-toggle" id="typeToggle" role="group" aria-label="Injection type">
+          <button class="toggle-button is-active" type="button" data-type="completed">Completed</button>
+          <button class="toggle-button" type="button" data-type="missed">Missed</button>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="danger-button" id="deleteButton" type="button">Delete</button>
+          <button class="primary-button" id="saveButton" type="submit">Log Now</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
