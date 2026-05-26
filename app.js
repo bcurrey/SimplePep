@@ -120,7 +120,16 @@ function getPeptideColor(peptide) {
 }
 
 function getLastDoseForPeptide(peptide) {
-  return getSortedLogs().find((log) => log.peptide === peptide && log.amount)?.amount ?? "0.5";
+  const lastDose = getSortedLogs().find((log) => log.peptide === peptide && log.amount)?.amount ?? "0.5";
+  return normalizeDoseForSlider(lastDose);
+}
+
+function normalizeDoseForSlider(value) {
+  const number = Number(value);
+  if (Number.isNaN(number)) return "0.5";
+  const clamped = Math.min(Math.max(number, 0), 5);
+  const rounded = Math.round(clamped / 0.25) * 0.25;
+  return rounded.toString();
 }
 
 function renderPeptideOptions() {
