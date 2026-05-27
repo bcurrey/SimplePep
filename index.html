@@ -144,6 +144,19 @@
 
         <div class="settings-list" id="settingsPeptideList"></div>
 
+        <section class="account-panel" aria-label="Manual backup">
+          <div>
+            <p class="eyebrow">Manual backup</p>
+            <p class="sync-status">Download a backup file and save it to Google Drive, iCloud, or Files.</p>
+          </div>
+          <div class="auth-actions">
+            <button class="secondary-button" id="exportBackupButton" type="button">Download Backup</button>
+            <button class="primary-button" id="importBackupButton" type="button">Restore Backup</button>
+          </div>
+          <input class="hidden-file-input" id="backupFileInput" type="file" accept="application/json,.json" />
+          <p class="sync-status" id="backupStatus"></p>
+        </section>
+
         <section class="account-panel" aria-label="Cloud backup account">
           <div>
             <p class="eyebrow">Cloud backup</p>

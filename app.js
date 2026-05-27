@@ -67,6 +67,10 @@ const elements = {
   newPeptideInput: document.querySelector("#newPeptideInput"),
   settingsPeptideList: document.querySelector("#settingsPeptideList"),
   closeSettingsButton: document.querySelector("#closeSettingsButton"),
+  exportBackupButton: document.querySelector("#exportBackupButton"),
+  importBackupButton: document.querySelector("#importBackupButton"),
+  backupFileInput: document.querySelector("#backupFileInput"),
+  backupStatus: document.querySelector("#backupStatus"),
   syncStatus: document.querySelector("#syncStatus"),
   authFields: document.querySelector("#authFields"),
   emailInput: document.querySelector("#emailInput"),
@@ -102,6 +106,10 @@ function saveLogs() {
 function savePeptides() {
   const customPeptides = state.peptides.filter((peptide) => !DEFAULT_PEPTIDES.includes(peptide));
   localStorage.setItem(PEPTIDE_STORAGE_KEY, JSON.stringify(customPeptides));
+}
+
+function setBackupStatus(message) {
+  elements.backupStatus.textContent = message;
 }
 
 function isSupabaseConfigured() {
@@ -425,6 +433,55 @@ function deleteCurrentLog() {
   deleteLogFromCloud(deletedId);
 }
 
+function exportBackup() {
+  const backup = {
+    app: "SimplePep",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    peptides: state.peptides,
+    logs: state.logs,
+  };
+  const dateLabel = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `simplepep-backup-${dateLabel}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setBackupStatus("Backup downloaded. Save it to Google Drive or Files.");
+}
+
+function importBackup() {
+  elements.backupFileInput.value = "";
+  elements.backupFileInput.click();
+}
+
+async function restoreBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const backup = JSON.parse(await file.text());
+    const backupLogs = Array.isArray(backup.logs) ? backup.logs : [];
+    const backupPeptides = Array.isArray(backup.peptides) ? backup.peptides : [];
+
+    state.logs = mergeLogs(state.logs, backupLogs);
+    state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...backupPeptides].filter(Boolean))];
+    saveLogs();
+    savePeptides();
+    refreshPeptideUi();
+    renderHistory();
+    renderCalendar();
+    setBackupStatus(`Restored ${backupLogs.length} entries from backup.`);
+    await pushLocalDataToCloud();
+  } catch {
+    setBackupStatus("Could not restore that file. Please choose a SimplePep backup JSON file.");
+  }
+}
+
 async function syncFromCloud() {
   if (!state.supabase || !state.user) return;
 
@@ -622,6 +679,9 @@ function bindEvents() {
   elements.closeSettingsButton.addEventListener("click", closeSettingsDialog);
   elements.settingsForm.addEventListener("submit", addPeptide);
   elements.settingsPeptideList.addEventListener("click", removePeptide);
+  elements.exportBackupButton.addEventListener("click", exportBackup);
+  elements.importBackupButton.addEventListener("click", importBackup);
+  elements.backupFileInput.addEventListener("change", restoreBackup);
   elements.signInButton.addEventListener("click", signIn);
   elements.signUpButton.addEventListener("click", signUp);
   elements.signOutButton.addEventListener("click", signOut);
