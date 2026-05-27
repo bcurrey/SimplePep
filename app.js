@@ -1,6 +1,8 @@
 const DEFAULT_PEPTIDES = ["Retatrutide", "BPC157/TB500", "GHK-Cu"];
 const STORAGE_KEY = "basic-peptide-injection-logs";
 const PEPTIDE_STORAGE_KEY = "basic-peptide-list";
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
 const PEPTIDE_COLORS = {
   Retatrutide: "#10b981",
   "BPC157/TB500": "#0ea5e9",
@@ -29,6 +31,10 @@ const state = {
   calendarMonth: new Date().getMonth(),
   calendarYear: new Date().getFullYear(),
   calendarPeptide: "all",
+  supabase: null,
+  user: null,
+  syncReady: false,
+  syncMessage: "",
 };
 
 const elements = {
@@ -61,6 +67,13 @@ const elements = {
   newPeptideInput: document.querySelector("#newPeptideInput"),
   settingsPeptideList: document.querySelector("#settingsPeptideList"),
   closeSettingsButton: document.querySelector("#closeSettingsButton"),
+  syncStatus: document.querySelector("#syncStatus"),
+  authFields: document.querySelector("#authFields"),
+  emailInput: document.querySelector("#emailInput"),
+  passwordInput: document.querySelector("#passwordInput"),
+  signInButton: document.querySelector("#signInButton"),
+  signUpButton: document.querySelector("#signUpButton"),
+  signOutButton: document.querySelector("#signOutButton"),
 };
 
 function loadLogs() {
@@ -91,6 +104,51 @@ function savePeptides() {
   localStorage.setItem(PEPTIDE_STORAGE_KEY, JSON.stringify(customPeptides));
 }
 
+function isSupabaseConfigured() {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+}
+
+function renderSyncStatus() {
+  if (!elements.syncStatus) return;
+
+  if (!isSupabaseConfigured()) {
+    elements.syncStatus.textContent = "Local only. Add Supabase keys in app.js to enable backup.";
+    elements.authFields.style.display = "none";
+    elements.signOutButton.style.display = "none";
+    return;
+  }
+
+  elements.authFields.style.display = state.user ? "none" : "grid";
+  elements.signOutButton.style.display = state.user ? "block" : "none";
+  elements.syncStatus.textContent = state.user
+    ? state.syncMessage || `Signed in as ${state.user.email}. Backup enabled.`
+    : state.syncMessage || "Sign in to back up and restore your data.";
+}
+
+async function initializeSupabase() {
+  if (!isSupabaseConfigured()) {
+    renderSyncStatus();
+    return;
+  }
+
+  state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data } = await state.supabase.auth.getSession();
+  state.user = data.session?.user ?? null;
+
+  state.supabase.auth.onAuthStateChange(async (_event, session) => {
+    state.user = session?.user ?? null;
+    if (state.user) {
+      await syncFromCloud();
+    }
+    renderSyncStatus();
+  });
+
+  if (state.user) {
+    await syncFromCloud();
+  }
+  renderSyncStatus();
+}
+
 function toDateTimeLocal(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
@@ -110,6 +168,39 @@ function formatDateTime(isoTimestamp) {
 
 function getSortedLogs() {
   return [...state.logs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function mergeLogs(localLogs, cloudLogs) {
+  const byId = new Map();
+  [...localLogs, ...cloudLogs].forEach((log) => {
+    if (!log?.id) return;
+    byId.set(log.id, { ...byId.get(log.id), ...log });
+  });
+  return [...byId.values()];
+}
+
+function fromCloudLog(row) {
+  return {
+    id: row.id,
+    peptide: row.peptide,
+    amount: String(row.amount),
+    unit: row.unit || "mg",
+    timestamp: row.timestamp,
+    type: "entry",
+  };
+}
+
+function toCloudLog(log) {
+  return {
+    id: log.id,
+    user_id: state.user.id,
+    peptide: log.peptide,
+    amount: Number(log.amount || 0),
+    unit: log.unit || "mg",
+    timestamp: log.timestamp,
+    type: "entry",
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function getPeptideColor(peptide) {
@@ -297,7 +388,7 @@ function closeEntryDialog() {
   state.editingId = null;
 }
 
-function upsertLog(event) {
+async function upsertLog(event) {
   event.preventDefault();
   const timestamp = fromDateTimeLocal(elements.timestampInput.value);
   const nextLog = {
@@ -320,15 +411,94 @@ function upsertLog(event) {
   renderCalendar();
   closeEntryDialog();
   switchTab("history");
+  await saveLogToCloud(nextLog);
 }
 
 function deleteCurrentLog() {
   if (!state.editingId) return;
+  const deletedId = state.editingId;
   state.logs = state.logs.filter((log) => log.id !== state.editingId);
   saveLogs();
   renderHistory();
   renderCalendar();
   closeEntryDialog();
+  deleteLogFromCloud(deletedId);
+}
+
+async function syncFromCloud() {
+  if (!state.supabase || !state.user) return;
+
+  state.syncMessage = "Syncing...";
+  renderSyncStatus();
+
+  const [{ data: cloudLogs, error: logsError }, { data: cloudPeptides, error: peptidesError }] = await Promise.all([
+    state.supabase.from("peptide_logs").select("*").order("timestamp", { ascending: false }),
+    state.supabase.from("user_peptides").select("name").order("name", { ascending: true }),
+  ]);
+
+  if (logsError || peptidesError) {
+    state.syncMessage = logsError?.message || peptidesError?.message || "Sync failed.";
+    renderSyncStatus();
+    return;
+  }
+
+  state.logs = mergeLogs(state.logs, (cloudLogs || []).map(fromCloudLog));
+  state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...(cloudPeptides || []).map((row) => row.name)].filter(Boolean))];
+  saveLogs();
+  savePeptides();
+  refreshPeptideUi();
+  renderHistory();
+  renderCalendar();
+
+  await pushLocalDataToCloud();
+  state.syncMessage = `Signed in as ${state.user.email}. Backup enabled.`;
+  renderSyncStatus();
+}
+
+async function pushLocalDataToCloud() {
+  if (!state.supabase || !state.user) return;
+
+  const customPeptides = state.peptides
+    .filter((peptide) => !DEFAULT_PEPTIDES.includes(peptide))
+    .map((name) => ({ user_id: state.user.id, name }));
+
+  if (customPeptides.length) {
+    await state.supabase.from("user_peptides").upsert(customPeptides, { onConflict: "user_id,name" });
+  }
+
+  if (state.logs.length) {
+    await state.supabase.from("peptide_logs").upsert(state.logs.map(toCloudLog));
+  }
+}
+
+async function saveLogToCloud(log) {
+  if (!state.supabase || !state.user) return;
+  const { error } = await state.supabase.from("peptide_logs").upsert(toCloudLog(log));
+  state.syncMessage = error ? error.message : `Signed in as ${state.user.email}. Backup enabled.`;
+  renderSyncStatus();
+}
+
+async function deleteLogFromCloud(id) {
+  if (!state.supabase || !state.user) return;
+  const { error } = await state.supabase.from("peptide_logs").delete().eq("id", id);
+  state.syncMessage = error ? error.message : `Signed in as ${state.user.email}. Backup enabled.`;
+  renderSyncStatus();
+}
+
+async function savePeptideToCloud(peptide) {
+  if (!state.supabase || !state.user || DEFAULT_PEPTIDES.includes(peptide)) return;
+  const { error } = await state.supabase
+    .from("user_peptides")
+    .upsert({ user_id: state.user.id, name: peptide }, { onConflict: "user_id,name" });
+  state.syncMessage = error ? error.message : `Signed in as ${state.user.email}. Backup enabled.`;
+  renderSyncStatus();
+}
+
+async function deletePeptideFromCloud(peptide) {
+  if (!state.supabase || !state.user || DEFAULT_PEPTIDES.includes(peptide)) return;
+  const { error } = await state.supabase.from("user_peptides").delete().eq("name", peptide);
+  state.syncMessage = error ? error.message : `Signed in as ${state.user.email}. Backup enabled.`;
+  renderSyncStatus();
 }
 
 function refreshPeptideUi() {
@@ -349,7 +519,7 @@ function closeSettingsDialog() {
   elements.settingsDialog.close();
 }
 
-function addPeptide(event) {
+async function addPeptide(event) {
   event.preventDefault();
   const peptide = elements.newPeptideInput.value.trim();
   if (!peptide || state.peptides.includes(peptide)) {
@@ -361,9 +531,10 @@ function addPeptide(event) {
   savePeptides();
   elements.newPeptideInput.value = "";
   refreshPeptideUi();
+  await savePeptideToCloud(peptide);
 }
 
-function removePeptide(event) {
+async function removePeptide(event) {
   const button = event.target.closest("[data-remove-peptide]");
   if (!button) return;
 
@@ -374,6 +545,33 @@ function removePeptide(event) {
   }
   savePeptides();
   refreshPeptideUi();
+  await deletePeptideFromCloud(peptide);
+}
+
+async function signIn() {
+  if (!state.supabase) return;
+  const email = elements.emailInput.value.trim();
+  const password = elements.passwordInput.value;
+  const { error } = await state.supabase.auth.signInWithPassword({ email, password });
+  state.syncMessage = error ? error.message : "Signing in...";
+  renderSyncStatus();
+}
+
+async function signUp() {
+  if (!state.supabase) return;
+  const email = elements.emailInput.value.trim();
+  const password = elements.passwordInput.value;
+  const { error } = await state.supabase.auth.signUp({ email, password });
+  state.syncMessage = error ? error.message : "Account created. Check email if confirmation is enabled.";
+  renderSyncStatus();
+}
+
+async function signOut() {
+  if (!state.supabase) return;
+  await state.supabase.auth.signOut();
+  state.user = null;
+  state.syncMessage = "Signed out. Data remains on this device.";
+  renderSyncStatus();
 }
 
 function bindEvents() {
@@ -424,6 +622,9 @@ function bindEvents() {
   elements.closeSettingsButton.addEventListener("click", closeSettingsDialog);
   elements.settingsForm.addEventListener("submit", addPeptide);
   elements.settingsPeptideList.addEventListener("click", removePeptide);
+  elements.signInButton.addEventListener("click", signIn);
+  elements.signUpButton.addEventListener("click", signUp);
+  elements.signOutButton.addEventListener("click", signOut);
 
   elements.entryDialog.addEventListener("click", (event) => {
     if (event.target === elements.entryDialog) closeEntryDialog();
@@ -441,3 +642,4 @@ renderHistory();
 renderCalendarControls();
 renderCalendar();
 bindEvents();
+initializeSupabase();

@@ -143,9 +143,34 @@
         </label>
 
         <div class="settings-list" id="settingsPeptideList"></div>
+
+        <section class="account-panel" aria-label="Cloud backup account">
+          <div>
+            <p class="eyebrow">Cloud backup</p>
+            <p class="sync-status" id="syncStatus">Local only</p>
+          </div>
+
+          <div class="auth-fields" id="authFields">
+            <label>
+              Email
+              <input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com" />
+            </label>
+            <label>
+              Password
+              <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Password" />
+            </label>
+            <div class="auth-actions">
+              <button class="secondary-button" id="signInButton" type="button">Sign In</button>
+              <button class="primary-button" id="signUpButton" type="button">Create Account</button>
+            </div>
+          </div>
+
+          <button class="secondary-button full-button" id="signOutButton" type="button">Sign Out</button>
+        </section>
       </form>
     </dialog>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>
