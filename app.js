@@ -1,4 +1,20 @@
-const DEFAULT_PEPTIDES = ["Retatrutide", "BPC157/TB500", "GHK-Cu"];
+const DEFAULT_FAVORITES = ["Retatrutide", "BPC157/TB500", "GHK-Cu"];
+const DEFAULT_PEPTIDES = [
+  "BPC157/TB500",
+  "CJC-1296",
+  "GHK-Cu",
+  "Glow",
+  "Ipamorelin",
+  "Klow",
+  "KPV",
+  "MOTS-C",
+  "NAD",
+  "Retatrutide",
+  "Selank",
+  "Semax",
+  "Sermorelin",
+  "Tesamorelin",
+];
 const STORAGE_KEY = "basic-peptide-injection-logs";
 const PEPTIDE_STORAGE_KEY = "basic-peptide-list";
 const FAVORITE_STORAGE_KEY = "favorite-peptide-list";
@@ -95,7 +111,7 @@ function loadPeptides() {
   try {
     const saved = localStorage.getItem(PEPTIDE_STORAGE_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
-    return [...new Set([...DEFAULT_PEPTIDES, ...parsed].filter(Boolean))];
+    return sortPeptides([...new Set([...DEFAULT_PEPTIDES, ...parsed].filter(Boolean))]);
   } catch {
     return DEFAULT_PEPTIDES;
   }
@@ -104,11 +120,15 @@ function loadPeptides() {
 function loadFavoritePeptides() {
   try {
     const saved = localStorage.getItem(FAVORITE_STORAGE_KEY);
-    const parsed = saved ? JSON.parse(saved) : DEFAULT_PEPTIDES;
+    const parsed = saved ? JSON.parse(saved) : DEFAULT_FAVORITES;
     return [...new Set(parsed.filter(Boolean))];
   } catch {
-    return DEFAULT_PEPTIDES;
+    return DEFAULT_FAVORITES;
   }
+}
+
+function sortPeptides(peptides) {
+  return [...peptides].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
 function saveLogs() {
@@ -248,13 +268,14 @@ function normalizeDoseForSlider(value) {
 }
 
 function renderPeptideOptions() {
-  elements.peptideInput.innerHTML = state.peptides.map((peptide) => {
+  const sortedPeptides = sortPeptides(state.peptides);
+  elements.peptideInput.innerHTML = sortedPeptides.map((peptide) => {
     return `<option value="${peptide}">${peptide}</option>`;
   }).join("");
 
   elements.calendarPeptideInput.innerHTML = [
     `<option value="all">All peptides</option>`,
-    ...state.peptides.map((peptide) => `<option value="${peptide}">${peptide}</option>`),
+    ...sortedPeptides.map((peptide) => `<option value="${peptide}">${peptide}</option>`),
   ].join("");
 }
 
@@ -278,7 +299,7 @@ function renderFavorites() {
 }
 
 function renderSettingsPeptides() {
-  elements.settingsPeptideList.innerHTML = state.peptides.map((peptide) => {
+  elements.settingsPeptideList.innerHTML = sortPeptides(state.peptides).map((peptide) => {
     const isDefault = DEFAULT_PEPTIDES.includes(peptide);
     const isFavorite = state.favoritePeptides.includes(peptide);
     const favoriteButton = `<button class="favorite-toggle ${isFavorite ? "is-favorite" : ""}" type="button" data-favorite-peptide="${escapeHtml(peptide)}">${isFavorite ? "Favorited" : "Favorite"}</button>`;
@@ -497,7 +518,7 @@ async function restoreBackup(event) {
     const backupFavorites = Array.isArray(backup.favoritePeptides) ? backup.favoritePeptides : [];
 
     state.logs = mergeLogs(state.logs, backupLogs);
-    state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...backupPeptides].filter(Boolean))];
+    state.peptides = sortPeptides([...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...backupPeptides].filter(Boolean))]);
     state.favoritePeptides = [
       ...new Set([...state.favoritePeptides, ...backupFavorites].filter((peptide) => state.peptides.includes(peptide))),
     ];
@@ -532,7 +553,9 @@ async function syncFromCloud() {
   }
 
   state.logs = mergeLogs(state.logs, (cloudLogs || []).map(fromCloudLog));
-  state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...(cloudPeptides || []).map((row) => row.name)].filter(Boolean))];
+  state.peptides = sortPeptides([
+    ...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...(cloudPeptides || []).map((row) => row.name)].filter(Boolean)),
+  ]);
   state.favoritePeptides = state.favoritePeptides.filter((peptide) => state.peptides.includes(peptide));
   saveLogs();
   savePeptides();
@@ -618,7 +641,7 @@ async function addPeptide(event) {
     return;
   }
 
-  state.peptides = [...state.peptides, peptide];
+  state.peptides = sortPeptides([...state.peptides, peptide]);
   savePeptides();
   elements.newPeptideInput.value = "";
   refreshPeptideUi();
