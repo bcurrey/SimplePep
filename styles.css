@@ -357,6 +357,10 @@ h2 {
   background: rgba(3, 7, 18, 0.72);
 }
 
+.reminder-dialog h2 {
+  margin-bottom: 8px;
+}
+
 .entry-form {
   display: grid;
   gap: 15px;

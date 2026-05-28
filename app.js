@@ -18,6 +18,8 @@ const DEFAULT_PEPTIDES = [
 const STORAGE_KEY = "basic-peptide-injection-logs";
 const PEPTIDE_STORAGE_KEY = "basic-peptide-list";
 const FAVORITE_STORAGE_KEY = "favorite-peptide-list";
+const BACKUP_REMINDER_KEY = "simplepep-last-backup-reminder";
+const BACKUP_REMINDER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const SUPABASE_URL = "";
 const SUPABASE_ANON_KEY = "";
 const PEPTIDE_COLORS = {
@@ -96,6 +98,9 @@ const elements = {
   signInButton: document.querySelector("#signInButton"),
   signUpButton: document.querySelector("#signUpButton"),
   signOutButton: document.querySelector("#signOutButton"),
+  backupReminderDialog: document.querySelector("#backupReminderDialog"),
+  backupNowButton: document.querySelector("#backupNowButton"),
+  backupLaterButton: document.querySelector("#backupLaterButton"),
 };
 
 function loadLogs() {
@@ -152,6 +157,25 @@ function saveFavoritePeptides() {
 
 function setBackupStatus(message) {
   elements.backupStatus.textContent = message;
+}
+
+function markBackupReminderSeen() {
+  localStorage.setItem(BACKUP_REMINDER_KEY, new Date().toISOString());
+}
+
+function shouldShowBackupReminder() {
+  const lastReminder = localStorage.getItem(BACKUP_REMINDER_KEY);
+  if (!lastReminder) return state.logs.length > 0;
+  return Date.now() - new Date(lastReminder).getTime() >= BACKUP_REMINDER_INTERVAL_MS;
+}
+
+function showBackupReminderIfNeeded() {
+  if (!elements.backupReminderDialog || !shouldShowBackupReminder()) return;
+  window.setTimeout(() => {
+    if (!elements.entryDialog.open && !elements.settingsDialog.open) {
+      elements.backupReminderDialog.showModal();
+    }
+  }, 900);
 }
 
 function isSupabaseConfigured() {
@@ -507,6 +531,7 @@ function exportBackup() {
   link.remove();
   URL.revokeObjectURL(url);
   setBackupStatus("Backup downloaded. Save it to Google Drive or Files.");
+  markBackupReminderSeen();
 }
 
 function importBackup() {
@@ -766,6 +791,14 @@ function bindEvents() {
   elements.signInButton.addEventListener("click", signIn);
   elements.signUpButton.addEventListener("click", signUp);
   elements.signOutButton.addEventListener("click", signOut);
+  elements.backupNowButton.addEventListener("click", () => {
+    elements.backupReminderDialog.close();
+    exportBackup();
+  });
+  elements.backupLaterButton.addEventListener("click", () => {
+    markBackupReminderSeen();
+    elements.backupReminderDialog.close();
+  });
 
   elements.entryDialog.addEventListener("click", (event) => {
     if (event.target === elements.entryDialog) closeEntryDialog();
@@ -784,3 +817,4 @@ renderCalendarControls();
 renderCalendar();
 bindEvents();
 initializeSupabase();
+showBackupReminderIfNeeded();
