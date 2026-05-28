@@ -1,0 +1,17 @@
+{
+  "name": "SimplePep",
+  "short_name": "SimplePep",
+  "description": "Simple peptide dose logging.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#08111f",
+  "theme_color": "#08111f",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
