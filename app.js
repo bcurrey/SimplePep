@@ -304,7 +304,7 @@ function renderSettingsPeptides() {
     const isFavorite = state.favoritePeptides.includes(peptide);
     const favoriteButton = `<button class="favorite-toggle ${isFavorite ? "is-favorite" : ""}" type="button" data-favorite-peptide="${escapeHtml(peptide)}">${isFavorite ? "Favorited" : "Favorite"}</button>`;
     const removeButton = isDefault
-      ? `<span class="default-pill">Default</span>`
+      ? ""
       : `<button class="text-button" type="button" data-remove-peptide="${escapeHtml(peptide)}">Remove</button>`;
 
     return `
