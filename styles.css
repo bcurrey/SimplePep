@@ -243,7 +243,8 @@ h2 {
 .toggle-button,
 .icon-button,
 .settings-button,
-.text-button {
+.text-button,
+.favorite-toggle {
   min-height: 44px;
   border: 0;
   border-radius: 12px;
@@ -297,6 +298,18 @@ h2 {
   padding: 0 10px;
   background: rgba(251, 113, 133, 0.12);
   color: var(--warn);
+}
+
+.favorite-toggle {
+  min-height: 36px;
+  padding: 0 10px;
+  background: var(--surface-strong);
+  color: var(--muted);
+}
+
+.favorite-toggle.is-favorite {
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--accent-dark);
 }
 
 .danger-button {
@@ -400,7 +413,7 @@ h2 {
 
 .settings-peptide {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 10px;
   padding: 12px;

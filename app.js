@@ -1,6 +1,7 @@
 const DEFAULT_PEPTIDES = ["Retatrutide", "BPC157/TB500", "GHK-Cu"];
 const STORAGE_KEY = "basic-peptide-injection-logs";
 const PEPTIDE_STORAGE_KEY = "basic-peptide-list";
+const FAVORITE_STORAGE_KEY = "favorite-peptide-list";
 const SUPABASE_URL = "";
 const SUPABASE_ANON_KEY = "";
 const PEPTIDE_COLORS = {
@@ -28,6 +29,7 @@ const state = {
   editingId: null,
   logs: loadLogs(),
   peptides: loadPeptides(),
+  favoritePeptides: loadFavoritePeptides(),
   calendarMonth: new Date().getMonth(),
   calendarYear: new Date().getFullYear(),
   calendarPeptide: "all",
@@ -99,6 +101,16 @@ function loadPeptides() {
   }
 }
 
+function loadFavoritePeptides() {
+  try {
+    const saved = localStorage.getItem(FAVORITE_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : DEFAULT_PEPTIDES;
+    return [...new Set(parsed.filter(Boolean))];
+  } catch {
+    return DEFAULT_PEPTIDES;
+  }
+}
+
 function saveLogs() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.logs));
 }
@@ -106,6 +118,10 @@ function saveLogs() {
 function savePeptides() {
   const customPeptides = state.peptides.filter((peptide) => !DEFAULT_PEPTIDES.includes(peptide));
   localStorage.setItem(PEPTIDE_STORAGE_KEY, JSON.stringify(customPeptides));
+}
+
+function saveFavoritePeptides() {
+  localStorage.setItem(FAVORITE_STORAGE_KEY, JSON.stringify(state.favoritePeptides));
 }
 
 function setBackupStatus(message) {
@@ -243,7 +259,14 @@ function renderPeptideOptions() {
 }
 
 function renderFavorites() {
-  elements.favoriteGrid.innerHTML = state.peptides.map((peptide) => {
+  const favoritePeptides = state.favoritePeptides.filter((peptide) => state.peptides.includes(peptide));
+
+  if (!favoritePeptides.length) {
+    elements.favoriteGrid.innerHTML = `<div class="empty-state">No quick-entry favorites yet. Add favorites in Settings.</div>`;
+    return;
+  }
+
+  elements.favoriteGrid.innerHTML = favoritePeptides.map((peptide) => {
     return `
       <button class="favorite-card" type="button" data-peptide="${escapeHtml(peptide)}" style="--peptide-color: ${getPeptideColor(peptide)}">
         <span class="peptide-dot" aria-hidden="true"></span>
@@ -257,6 +280,8 @@ function renderFavorites() {
 function renderSettingsPeptides() {
   elements.settingsPeptideList.innerHTML = state.peptides.map((peptide) => {
     const isDefault = DEFAULT_PEPTIDES.includes(peptide);
+    const isFavorite = state.favoritePeptides.includes(peptide);
+    const favoriteButton = `<button class="favorite-toggle ${isFavorite ? "is-favorite" : ""}" type="button" data-favorite-peptide="${escapeHtml(peptide)}">${isFavorite ? "Favorited" : "Favorite"}</button>`;
     const removeButton = isDefault
       ? `<span class="default-pill">Default</span>`
       : `<button class="text-button" type="button" data-remove-peptide="${escapeHtml(peptide)}">Remove</button>`;
@@ -265,6 +290,7 @@ function renderSettingsPeptides() {
       <div class="settings-peptide" style="--peptide-color: ${getPeptideColor(peptide)}">
         <span class="peptide-dot" aria-hidden="true"></span>
         <strong>${escapeHtml(peptide)}</strong>
+        ${favoriteButton}
         ${removeButton}
       </div>
     `;
@@ -439,6 +465,7 @@ function exportBackup() {
     version: 1,
     exportedAt: new Date().toISOString(),
     peptides: state.peptides,
+    favoritePeptides: state.favoritePeptides,
     logs: state.logs,
   };
   const dateLabel = new Date().toISOString().slice(0, 10);
@@ -467,11 +494,16 @@ async function restoreBackup(event) {
     const backup = JSON.parse(await file.text());
     const backupLogs = Array.isArray(backup.logs) ? backup.logs : [];
     const backupPeptides = Array.isArray(backup.peptides) ? backup.peptides : [];
+    const backupFavorites = Array.isArray(backup.favoritePeptides) ? backup.favoritePeptides : [];
 
     state.logs = mergeLogs(state.logs, backupLogs);
     state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...backupPeptides].filter(Boolean))];
+    state.favoritePeptides = [
+      ...new Set([...state.favoritePeptides, ...backupFavorites].filter((peptide) => state.peptides.includes(peptide))),
+    ];
     saveLogs();
     savePeptides();
+    saveFavoritePeptides();
     refreshPeptideUi();
     renderHistory();
     renderCalendar();
@@ -501,8 +533,10 @@ async function syncFromCloud() {
 
   state.logs = mergeLogs(state.logs, (cloudLogs || []).map(fromCloudLog));
   state.peptides = [...new Set([...DEFAULT_PEPTIDES, ...state.peptides, ...(cloudPeptides || []).map((row) => row.name)].filter(Boolean))];
+  state.favoritePeptides = state.favoritePeptides.filter((peptide) => state.peptides.includes(peptide));
   saveLogs();
   savePeptides();
+  saveFavoritePeptides();
   refreshPeptideUi();
   renderHistory();
   renderCalendar();
@@ -597,12 +631,28 @@ async function removePeptide(event) {
 
   const peptide = button.dataset.removePeptide;
   state.peptides = state.peptides.filter((entry) => entry !== peptide);
+  state.favoritePeptides = state.favoritePeptides.filter((entry) => entry !== peptide);
   if (state.calendarPeptide === peptide) {
     state.calendarPeptide = "all";
   }
   savePeptides();
+  saveFavoritePeptides();
   refreshPeptideUi();
   await deletePeptideFromCloud(peptide);
+}
+
+function toggleFavoritePeptide(event) {
+  const button = event.target.closest("[data-favorite-peptide]");
+  if (!button) return;
+
+  const peptide = button.dataset.favoritePeptide;
+  if (state.favoritePeptides.includes(peptide)) {
+    state.favoritePeptides = state.favoritePeptides.filter((entry) => entry !== peptide);
+  } else {
+    state.favoritePeptides = [...state.favoritePeptides, peptide];
+  }
+  saveFavoritePeptides();
+  refreshPeptideUi();
 }
 
 async function signIn() {
@@ -679,6 +729,7 @@ function bindEvents() {
   elements.closeSettingsButton.addEventListener("click", closeSettingsDialog);
   elements.settingsForm.addEventListener("submit", addPeptide);
   elements.settingsPeptideList.addEventListener("click", removePeptide);
+  elements.settingsPeptideList.addEventListener("click", toggleFavoritePeptide);
   elements.exportBackupButton.addEventListener("click", exportBackup);
   elements.importBackupButton.addEventListener("click", importBackup);
   elements.backupFileInput.addEventListener("change", restoreBackup);
