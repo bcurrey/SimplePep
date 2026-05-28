@@ -131,6 +131,12 @@ function sortPeptides(peptides) {
   return [...peptides].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
+function sortPeptidesWithFavoritesFirst(peptides) {
+  const favorites = sortPeptides(peptides.filter((peptide) => state.favoritePeptides.includes(peptide)));
+  const others = sortPeptides(peptides.filter((peptide) => !state.favoritePeptides.includes(peptide)));
+  return [...favorites, ...others];
+}
+
 function saveLogs() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.logs));
 }
@@ -269,13 +275,14 @@ function normalizeDoseForSlider(value) {
 
 function renderPeptideOptions() {
   const sortedPeptides = sortPeptides(state.peptides);
+  const calendarPeptides = sortPeptidesWithFavoritesFirst(state.peptides);
   elements.peptideInput.innerHTML = sortedPeptides.map((peptide) => {
     return `<option value="${peptide}">${peptide}</option>`;
   }).join("");
 
   elements.calendarPeptideInput.innerHTML = [
     `<option value="all">All peptides</option>`,
-    ...sortedPeptides.map((peptide) => `<option value="${peptide}">${peptide}</option>`),
+    ...calendarPeptides.map((peptide) => `<option value="${peptide}">${peptide}</option>`),
   ].join("");
 }
 
