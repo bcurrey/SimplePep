@@ -496,7 +496,6 @@ async function upsertLog(event) {
   renderHistory();
   renderCalendar();
   closeEntryDialog();
-  switchTab("history");
   await saveLogToCloud(nextLog);
 }
 
