@@ -289,6 +289,10 @@ function getLastDoseForPeptide(peptide) {
   return normalizeDoseForSlider(lastDose);
 }
 
+function getDefaultUnitForPeptide(peptide) {
+  return peptide.trim().toUpperCase() === "HGH" ? "IU" : "mg";
+}
+
 function normalizeDoseForSlider(value) {
   const number = Number(value);
   if (Number.isNaN(number)) return "0.5";
@@ -452,7 +456,7 @@ function switchTab(tab) {
 
 function updateDoseReadout() {
   elements.amountValue.textContent = Number(elements.amountInput.value).toFixed(2);
-  elements.unitPreview.textContent = elements.unitInput.value.trim() || "mg";
+  elements.unitPreview.textContent = elements.unitInput.value.trim() || getDefaultUnitForPeptide(elements.peptideInput.value);
 }
 
 function openEntryDialog({ peptide = state.peptides[0], log = null } = {}) {
@@ -460,7 +464,7 @@ function openEntryDialog({ peptide = state.peptides[0], log = null } = {}) {
   elements.dialogTitle.textContent = log ? "Edit entry" : "Log dose";
   elements.peptideInput.value = log?.peptide ?? peptide;
   elements.amountInput.value = log?.amount ?? getLastDoseForPeptide(elements.peptideInput.value);
-  elements.unitInput.value = log?.unit ?? "mg";
+  elements.unitInput.value = getDefaultUnitForPeptide(elements.peptideInput.value);
   elements.timestampInput.value = toDateTimeLocal(log ? new Date(log.timestamp) : new Date());
   elements.deleteButton.classList.toggle("is-visible", Boolean(log));
   elements.saveButton.textContent = state.editingId ? "Save Changes" : "Log Now";
@@ -481,7 +485,7 @@ async function upsertLog(event) {
     id: state.editingId ?? crypto.randomUUID(),
     peptide: elements.peptideInput.value,
     amount: elements.amountInput.value,
-    unit: elements.unitInput.value.trim() || "mg",
+    unit: getDefaultUnitForPeptide(elements.peptideInput.value),
     timestamp,
     type: "entry",
   };
@@ -770,8 +774,10 @@ function bindEvents() {
 
   elements.entryForm.addEventListener("submit", upsertLog);
   elements.peptideInput.addEventListener("change", () => {
-    if (state.editingId) return;
-    elements.amountInput.value = getLastDoseForPeptide(elements.peptideInput.value);
+    if (!state.editingId) {
+      elements.amountInput.value = getLastDoseForPeptide(elements.peptideInput.value);
+    }
+    elements.unitInput.value = getDefaultUnitForPeptide(elements.peptideInput.value);
     updateDoseReadout();
   });
   elements.amountInput.addEventListener("input", updateDoseReadout);
