@@ -296,7 +296,7 @@ function getDefaultUnitForPeptide(peptide) {
 function normalizeDoseForSlider(value) {
   const number = Number(value);
   if (Number.isNaN(number)) return "0.5";
-  const clamped = Math.min(Math.max(number, 0), 5);
+  const clamped = Math.min(Math.max(number, 0), 12);
   const rounded = Math.round(clamped / 0.25) * 0.25;
   return rounded.toString();
 }
